@@ -7,7 +7,7 @@
 # MAGIC %md
 # MAGIC ## Load Data
 # MAGIC 
-# MAGIC We are reading straight from a delta table. We could be reading from any source, including files, BigQuery, jdbc connection, Kafka, and many others
+# MAGIC We are reading straight from a delta table. We could be reading from any source, including files, BigQuery, jdbc connection, Kafka, and many others.
 
 # COMMAND ----------
 
