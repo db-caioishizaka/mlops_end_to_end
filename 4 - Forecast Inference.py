@@ -32,6 +32,10 @@ print(model_production_uri)
 
 # Load the model
 
+from databricks import feature_store
+
+fs = feature_store.FeatureStoreClient()
+
 loaded_model = mlflow.pyfunc.load_model(model_production_uri)
 
 # COMMAND ----------

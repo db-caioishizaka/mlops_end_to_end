@@ -22,20 +22,20 @@ print("Experiments ID:", experiment_ids)
 
 # COMMAND ----------
 
-query = "metrics.val_coverage < 0.8"
+query = "metrics.val_mape > 0.01"
 runs = MlflowClient().search_runs(experiment_ids, query, ViewType.ALL)
 
 # COMMAND ----------
 
-accuracy_high = None
+best_mape = None
 run_id = None
 
 for run in runs:
-  if (accuracy_high == None or run.data.metrics['val_mape'] > accuracy_high):
-    accuracy_high = run.data.metrics['val_mape']
+  if (best_mape == None or run.data.metrics['val_mape'] < best_mape):
+    best_mape = run.data.metrics['val_mape']
     run_id = run.info.run_id
     best_run = run
-print("Highest Accuracy:", accuracy_high)
+print("Best Mape:", best_mape)
 print("Run ID:", run_id)
 
 model_uri = "runs:/" + run_id + "/model"
@@ -49,10 +49,12 @@ import time
 ##Check if the model is already registered
 client = MlflowClient()
 model_name = "forecast-globo"
-try:
+if len(client.search_model_versions(f"name = '{model_name}'"))== 0:
   registered_model = client.get_registered_model(model_name)
-except:
+  print('new')
+else:
   registered_model = mlflow.register_model(model_uri=model_uri, name=model_name)
+  print('update')
 
 ##Create the model source
 model_source = f"{best_run.info.artifact_uri}/model"
@@ -60,7 +62,7 @@ model_source = f"{best_run.info.artifact_uri}/model"
 print(model_source)
 
 max_version = 0
-for mv in client.search_model_versions("name = 'forecast-globo'"):
+for mv in client.search_model_versions(f"name = '{model_name}'"):
   current_version = int(dict(mv)['version'])
   if current_version > max_version:
     max_version = current_version
