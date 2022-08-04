@@ -1,6 +1,11 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC ## Analyze the predicted results
+# MAGIC ![Big picture of MLOps demo Step 4 Scoring](files/Step4.png)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Forecast and materialize results
 
 # COMMAND ----------
 
@@ -51,5 +56,17 @@ forecast_pd = ids.to_spark().groupby("ts_id").applyInPandas(lambda df: model.mod
 # COMMAND ----------
 
 predict_cols = ["ds", "ts_id", "yhat","yhat_lower", "yhat_upper"]
-#forecast_pd = forecast_pd.reset_index()
+forecast_pd = forecast_pd.reset_index()
 display(forecast_pd[predict_cols])
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Save the results to a Delta table
+
+# COMMAND ----------
+
+forecast_pd.to_spark().write\
+  .format("delta")\
+  .mode("overwrite")\
+  .saveAsTable("demand_forecast")

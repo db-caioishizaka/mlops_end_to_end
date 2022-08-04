@@ -1,4 +1,9 @@
 # Databricks notebook source
+# MAGIC %md
+# MAGIC ![Big picture of MLOps demo Step 2 Train model](files/Step2.png)
+
+# COMMAND ----------
+
 # MAGIC %md ###Training Prophet
 
 # COMMAND ----------
@@ -28,6 +33,19 @@ import logging
 
 # disable informational messages from prophet
 logging.getLogger("py4j").setLevel(logging.WARNING)
+
+# COMMAND ----------
+
+group_cols = [time_col] + id_cols
+df_aggregated = df_loaded \
+  .groupby(group_cols) \
+  .agg(y=(target_col, "avg")) \
+  .reset_index() \
+  .rename(columns={ time_col : "ds" })
+
+df_aggregated = df_aggregated.assign(ts_id=lambda x:x["store"].astype(str)+"-"+x["item"].astype(str))
+
+df_aggregated.head()
 
 # COMMAND ----------
 
@@ -83,63 +101,19 @@ def train_with_fail_safe(df):
 
 # COMMAND ----------
 
-# MAGIC %md ###Load Feature Store Table
-
-# COMMAND ----------
-
-from databricks import feature_store
-
-fs = feature_store.FeatureStoreClient()
-
-# COMMAND ----------
-
-from databricks.feature_store import FeatureLookup
-
-# Start an mlflow run, which is needed for the feature store to log the model
-#mlflow.start_run() 
-
-feature_lookups = [
-    FeatureLookup(
-      table_name = 'feature_store_forecast_example.demand_history',
-      feature_names = ['ds','store','item','y','ts_id'],
-      lookup_key = 'customer_id')
-  ]
-
-# Create the training set that includes the raw input data merged with corresponding features from both feature tables
-training_set = fs.create_training_set(
-  df = training_df,
-  feature_lookups = feature_lookups,
-  label = '',
-)
-
-# Load the TrainingSet into a dataframe which can be passed into sklearn for training a model
-#training_df = training_set.load_df()
-
-# End any existing runs (in the case this notebook is being run for a second time)
-#mlflow.end_run()
-
-# COMMAND ----------
-
-training_df = fs.read_table(
-  name='feature_store_forecast_example.demand_history',
-)
-
-# COMMAND ----------
-
 import mlflow
 from databricks.automl_runtime.forecast.prophet.model import mlflow_prophet_log_model, MultiSeriesProphetModel
 
 mlflow.set_experiment("/Users/caio.ishizaka@databricks.com/MLOps - Demand forecast experiments")
 
 with mlflow.start_run(run_name="PROPHET") as mlflow_run:
-  run_id = mlflow_run.info.run_id
   mlflow.set_tag("estimator_name", "Prophet")
   mlflow.log_param("interval_width", 0.8)
   mlflow.log_param("num_folds", 3)
   mlflow.log_param("max_eval", 2)
   mlflow.log_param("trial_timeout", 7110)
   
-  forecast_results = (training_df.repartition(sc.defaultParallelism, id_cols)
+  forecast_results = (df_aggregated.to_spark().repartition(sc.defaultParallelism, id_cols)
     .groupby(id_cols).applyInPandas(train_with_fail_safe, result_schema)).cache().pandas_api()
    
   # Check whether every time series's model is trained
@@ -184,41 +158,9 @@ forecast_results.head(5)
 
 # COMMAND ----------
 
-from mlflow.tracking.client import MlflowClient
-from mlflow.entities import ViewType
-
-experiment_name = "/Users/caio.ishizaka@databricks.com/MLOps - Demand forecast experiments"
-experiment = MlflowClient().get_experiment_by_name(experiment_name)
-experiment_ids = eval('[' + experiment.experiment_id + ']')
-print("Experiments ID:", experiment_ids)
-
-# COMMAND ----------
-
-query = "metrics.val_coverage < 0.99"
-runs = MlflowClient().search_runs(experiment_ids, query, ViewType.ALL)
-
-# COMMAND ----------
-
-accuracy_high = None
-run_id = None
-
-for run in runs:
-  if (accuracy_high == None or run.data.metrics['val_coverage'] > accuracy_high):
-    accuracy_high = run.data.metrics['val_coverage']
-    run_id = run.info.run_id
-    best_run = run
-print("Highest Accuracy:", accuracy_high)
-print("Run ID:", run_id)
-
-model_uri = "runs:/" + run_id + "/model"
-
-print(model_uri)
-
-# COMMAND ----------
-
 # Load the model
-
-loaded_model = mlflow.pyfunc.load_model(model_uri)
+run_id = mlflow_run.info.run_id
+loaded_model = mlflow.pyfunc.load_model(f"runs:/{run_id}/model")
 
 # COMMAND ----------
 
@@ -264,13 +206,12 @@ else:
     a = add_changepoints_to_plot(fig.gca(), model, predict_pd)
 fig
 
-fig.savefig('forecast.png')
-
 # COMMAND ----------
 
-current_run = run.info.run_id
+fig.savefig('/dbfs/FileStore/forecast.png')
+current_run = mlflow_run.info.run_id
 with mlflow.start_run(run_id=current_run, nested=True):  
-  mlflow.log_artifact("forecast.png")
+  mlflow.log_artifact("/dbfs/FileStore/forecast.png")
 
 # COMMAND ----------
 
@@ -286,11 +227,10 @@ if use_plotly:
 else:
     fig = model.plot_components(predict_pd)
     
-fig.savefig('forecast_components.png')
+fig.savefig('/dbfs/FileStore/forecast_components.png')
 
-current_run = run.info.run_id
 with mlflow.start_run(run_id=current_run, nested=True):  
-  mlflow.log_artifact("forecast_components.png")
+  mlflow.log_artifact("/dbfs/FileStore/forecast_components.png")
 
 # COMMAND ----------
 

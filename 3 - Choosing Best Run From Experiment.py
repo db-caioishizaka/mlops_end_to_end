@@ -1,6 +1,13 @@
 # Databricks notebook source
 # MAGIC %md
+# MAGIC ![Big picture of MLOps demo Step 3 Manage model](files/Step3.png)
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Choosing Best Run for the Experiment
+# MAGIC 
+# MAGIC We get all runs in the experiment, and grab the one with best target measure. In this caspe, MAPE, which is a good metric for forecast models
 
 # COMMAND ----------
 
@@ -24,8 +31,8 @@ accuracy_high = None
 run_id = None
 
 for run in runs:
-  if (accuracy_high == None or run.data.metrics['val_coverage'] > accuracy_high):
-    accuracy_high = run.data.metrics['val_coverage']
+  if (accuracy_high == None or run.data.metrics['val_mape'] > accuracy_high):
+    accuracy_high = run.data.metrics['val_mape']
     run_id = run.info.run_id
     best_run = run
 print("Highest Accuracy:", accuracy_high)

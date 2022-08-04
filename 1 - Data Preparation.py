@@ -1,6 +1,13 @@
 # Databricks notebook source
 # MAGIC %md
+# MAGIC ![Big picture of MLOps demo Step 1 Load data](files/Step1.png)
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Load Data
+# MAGIC 
+# MAGIC We are reading straight from a delta table. We could be reading from any source, including files, BigQuery, jdbc connection, Kafka, and many others
 
 # COMMAND ----------
 
@@ -76,8 +83,8 @@ horizon = 90
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Aggregate data by `id_col` and `time_col`
-# MAGIC Group the data by `id_col` and `time_col`, and take average if there are multiple `target_col` values in the same group.
+# MAGIC ### Aggregate data by `store`, `item` and `date`
+# MAGIC Group the data by `store`, `item` and `date`, and take average if there are multiple `sales` values in the same group.
 
 # COMMAND ----------
 
